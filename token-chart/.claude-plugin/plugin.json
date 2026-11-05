@@ -1,0 +1,11 @@
+{
+  "name": "token-chart",
+  "version": "0.1.0",
+  "description": "요청마다 토큰 사용량(cache read/write, input, output)과 컨텍스트 사용률을 옆 창에 차트로 그립니다",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "danixai",
+    "url": "https://github.com/danixaiofficial-wq"
+  },
+  "repository": "https://github.com/danixaiofficial-wq/claude-mods"
+}

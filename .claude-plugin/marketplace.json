@@ -1,0 +1,19 @@
+{
+  "name": "claude-mods",
+  "owner": { "name": "danixai" },
+  "metadata": {
+    "description": "danixai의 Claude Code mod 모음: 토큰 사용량 차트, 서브에이전트 라운지"
+  },
+  "plugins": [
+    {
+      "name": "token-chart",
+      "source": "./token-chart",
+      "description": "요청마다 토큰 사용량(cache read/write, input, output)과 컨텍스트 사용률, 세션 비용을 옆 창에 차트로 그립니다"
+    },
+    {
+      "name": "agent-lounge",
+      "source": "./agent-lounge",
+      "description": "서브에이전트가 무엇을 하고 있는지 귀여운 ✻ 캐릭터와 함께 옆 창에 보여 줍니다"
+    }
+  ]
+}
