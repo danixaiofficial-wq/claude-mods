@@ -10,7 +10,7 @@
 **Claude Code 옆구리에 붙이는 작은 창들.**
 토큰이 어디로 새는지, 서브에이전트가 지금 뭘 하는지, 대화 옆에서 바로 봅니다.
 
-`Claude Code ≥ 2.1.287` · `terminal` · `desktop` · `vscode`
+`Claude Code ≥ 2.1.287` · `terminal` · `desktop` · `vscode` · `MIT`
 
 </div>
 
@@ -192,6 +192,6 @@ mod가 처음 로드되면 엔진이 `.claude-plugin/types/`에 API 타입을 �
 (✻ᴗ✻)/  즐거운 모딩 되세요
 ```
 
-Made with Claude Code mods · [mods 문서](https://code.claude.com/docs/ko/plugins/mods/overview)
+Made with Claude Code mods · [mods 문서](https://code.claude.com/docs/ko/plugins/mods/overview) · [MIT License](LICENSE)
 
 </div>
