@@ -4,7 +4,7 @@
     "name": "danixai"
   },
   "metadata": {
-    "description": "danixai의 Claude Code mod 모음: 토큰 사용량 차트, 서브에이전트 라운지"
+    "description": "danixai의 Claude Code mod 모음: 토큰 차트, 에이전트 라운지, 계정 카드, 한영키 구조대, 도구 두꺼비집"
   },
   "plugins": [
     {
