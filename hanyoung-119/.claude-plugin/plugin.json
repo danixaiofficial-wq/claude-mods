@@ -1,0 +1,8 @@
+{
+  "name": "hanyoung-119",
+  "version": "0.1.0",
+  "description": "한영키 구조대: 영문 자판 상태로 친 한글(dkssud)을 보내기 전에 한글(안녕)로 바꿔 줍니다",
+  "author": { "name": "danixai", "url": "https://github.com/danixaiofficial-wq" },
+  "repository": "https://github.com/danixaiofficial-wq/claude-mods",
+  "license": "MIT"
+}

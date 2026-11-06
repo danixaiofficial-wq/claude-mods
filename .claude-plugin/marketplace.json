@@ -21,6 +21,11 @@
       "name": "account-hub",
       "source": "./account-hub",
       "description": "로그인한 Claude 계정, GitHub 계정, git commit 작성자를 카드로 한눈에 보여 줍니다"
+    },
+    {
+      "name": "hanyoung-119",
+      "source": "./hanyoung-119",
+      "description": "한영키 구조대: 영문 자판 상태로 친 한글(dkssud)을 보내기 전에 한글(안녕)로 바꿔 줍니다"
     }
   ]
 }
