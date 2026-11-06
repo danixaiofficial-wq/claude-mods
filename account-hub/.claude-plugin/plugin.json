@@ -1,0 +1,9 @@
+{
+  "name": "account-hub",
+  "version": "0.1.0",
+  "description": "로그인한 Claude 계정, GitHub 계정, git commit 작성자를 카드로 한눈에 보여 줍니다",
+  "types": "./types/index.d.ts",
+  "author": { "name": "danixai", "url": "https://github.com/danixaiofficial-wq" },
+  "repository": "https://github.com/danixaiofficial-wq/claude-mods",
+  "license": "MIT"
+}
