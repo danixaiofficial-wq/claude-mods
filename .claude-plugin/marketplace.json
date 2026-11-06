@@ -26,6 +26,11 @@
       "name": "hanyoung-119",
       "source": "./hanyoung-119",
       "description": "한영키 구조대: 영문 자판 상태로 친 한글(dkssud)을 보내기 전에 한글(안녕)로 바꿔 줍니다"
+    },
+    {
+      "name": "dukkeobi",
+      "source": "./dukkeobi",
+      "description": "도구 두꺼비집: Claude가 쓰는 도구(Bash, Edit, 웹, MCP 서버)를 창에서 차단기처럼 내리고 올립니다"
     }
   ]
 }

@@ -1,0 +1,8 @@
+{
+  "name": "dukkeobi",
+  "version": "0.1.0",
+  "description": "도구 두꺼비집: Claude가 쓰는 도구(Bash, Edit, 웹, MCP 서버)를 창에서 차단기처럼 내리고 올립니다",
+  "author": { "name": "danixai", "url": "https://github.com/danixaiofficial-wq" },
+  "repository": "https://github.com/danixaiofficial-wq/claude-mods",
+  "license": "MIT"
+}
