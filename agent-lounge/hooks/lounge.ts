@@ -130,3 +130,31 @@ export const tallyByType = (list: readonly AgentRecord[]): Tally[] => {
   return Array.from(counts, ([type, count]) => ({ type, count }))
     .sort((a, b) => b.count - a.count)
 }
+
+const ACTIVITY_COLUMNS = 48
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined)
+const baseName = (path: string): string => path.split('/').filter(Boolean).pop() ?? path
+const oneLine = (value: string): string => value.replace(/\s+/g, ' ').trim()
+
+/** What a tool call is doing, in a few words: `Read lounge.ts`, `$ git status`. */
+export const activityOf = (tool: string, args: Readonly<Record<string, unknown>>): string => {
+  const path = str(args.file_path) ?? str(args.notebook_path) ?? str(args.path)
+  const said = ((): string => {
+    switch (tool) {
+      case 'Read': case 'Edit': case 'Write': case 'MultiEdit': case 'NotebookEdit':
+        return path ? `${tool} ${baseName(path)}` : tool
+      case 'Grep': return `Grep "${str(args.pattern) ?? ''}"`
+      case 'Glob': return `Glob ${str(args.pattern) ?? ''}`
+      case 'Bash': return `$ ${oneLine(str(args.command) ?? '')}`
+      case 'WebFetch': return `Fetch ${str(args.url)?.replace(/^https?:\/\//, '').split('/')[0] ?? ''}`
+      case 'WebSearch': return `Search "${str(args.query) ?? ''}"`
+      case 'Agent': return `Agent ${str(args.description) ?? ''}`
+      default: return tool.startsWith('mcp__') ? tool.split('__').slice(1).join(' ') : tool
+    }
+  })()
+  return truncate(oneLine(said), ACTIVITY_COLUMNS)
+}
+
+/** A record built from a tool call or a step before its spawn was seen. */
+export const isPlaceholder = (a: AgentRecord): boolean => a.type === 'agent' && a.description === ''

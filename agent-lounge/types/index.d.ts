@@ -11,6 +11,8 @@ export type AgentRecord = {
   durationMs?: number
   toolCalls: number
   lastTool?: string
+  /** What the agent is doing now, e.g. `Read lounge.ts`. */
+  activity?: string
   contextTokens: number
   outputTokens: number
 }

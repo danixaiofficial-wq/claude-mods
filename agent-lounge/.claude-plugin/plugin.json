@@ -1,6 +1,6 @@
 {
   "name": "agent-lounge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "서브에이전트가 언제 무엇을 하고 있는지 귀여운 ✻ 캐릭터와 함께 옆 창에 보여 줍니다",
   "types": "./types/index.d.ts",
   "author": {

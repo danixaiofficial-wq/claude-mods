@@ -1,6 +1,7 @@
+import type { AgentInfo } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
-import { MAX_AGENTS, colorOf, formatDuration, formatTokens, mascotOf, newRecord, ordered, tallyByType, touch, truncate } from '../hooks/lounge'
+import { MAX_AGENTS, activityOf, colorOf, formatDuration, formatTokens, mascotOf, newRecord, ordered, tallyByType, touch, truncate } from '../hooks/lounge'
 
 const PANE = {
   plugin: 'agent-lounge',
@@ -15,6 +16,9 @@ const PANE = {
     view: {},
   },
 } as const
+
+/** A tool call from a subagent's loop; typed loosely to keep tsc's instantiation shallow. */
+type LooseToolCall = (input: Readonly<Record<string, unknown>>) => Promise<unknown>
 
 /** Reads a streaming dispatch to its end, so the hooks beneath it run. */
 const drain = async <C, R>(stream: AsyncGenerator<C, R> & { result: Promise<R> }): Promise<R> => {
@@ -68,6 +72,30 @@ test('a full list drops the oldest finished agent, never a working one', () => {
   expect(next.map(a => a.id)).not.toContain('d0')
 })
 
+test('activityOf says what a tool call works on', () => {
+  expect(activityOf('Read', { file_path: '/a/b/lounge.ts' })).toBe('Read lounge.ts')
+  expect(activityOf('Grep', { pattern: 'auth' })).toBe('Grep "auth"')
+  expect(activityOf('Bash', { command: 'git   status\n -s' })).toBe('$ git status -s')
+  expect(activityOf('WebFetch', { url: 'https://docs.example.com/a/b' })).toBe('Fetch docs.example.com')
+  expect(activityOf('mcp__github__get_issue', {})).toBe('github get_issue')
+})
+
+test('an agent whose spawn was missed is filled in from the engine list', async ($, on) => {
+  on('clock.now', () => ({ value: 1_000_000 }))
+  on('turn.step', async function* (_, e) {
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const, usage: null }
+  })
+  const lost: AgentInfo = { id: 'lost', type: 'Explore', description: 'map the repo', status: 'running' }
+  on('agent.list', () => ({ value: [lost] }))
+
+  await drain($.turn.step({ turnId: 't9', index: 0, model: 'haiku', messageCount: 1, agentId: 'lost' }))
+  const run = await $.command.run({
+    command: 'agent-lounge', args: 'status', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 },
+  })
+
+  expect(run.text).toContain('running   Explore · map the repo · 0 tools')
+})
+
 test('a spawned agent shows its tools, tokens and finish in the pane', async ($, on) => {
   on('clock.now', () => ({ value: 1_000_000 }))
   on('clock.every', () => ({ value: undefined }))
@@ -88,13 +116,13 @@ test('a spawned agent shows its tools, tokens and finish in the pane', async ($,
     tool_use_id: 'tu1', prompt: 'find the auth code', description: 'find auth code', subagentType: 'Explore',
     provider: { plugin: 'engine', tier: 'core' }, parentModel: 'claude-opus-5-5', background: false, fork: false,
   })
-  await $.tool.call({ tool: 'Bash', command: 'grep -r auth .', agentId: 'ag1' })
-  await $.tool.call({ tool: 'Read', file_path: '/x', agentId: 'ag1' })
+  await ($.tool.call as unknown as LooseToolCall)({ tool: 'Bash', command: 'grep -r auth .', agentId: 'ag1' })
+  await ($.tool.call as unknown as LooseToolCall)({ tool: 'Read', file_path: '/x', agentId: 'ag1' })
   await drain($.turn.step({ turnId: 't1', index: 0, model: 'haiku', messageCount: 2, agentId: 'ag1' }))
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect((await ui.find({ type: 'Text', text: /Explore find auth code/ }))?.text).toContain('⌕')
-  expect((await ui.find({ type: 'Text', text: /2 tools/ }))?.text).toContain('ctx 31k · out 2.5k')
+  expect((await ui.find({ type: 'Text', text: /2 tools/ }))?.text).toContain('▸ Read x')
   expect((await ui.find({ type: 'Text', text: /1 working/ }))).toBeTruthy()
   await ui.unmount()
 
@@ -102,7 +130,7 @@ test('a spawned agent shows its tools, tokens and finish in the pane', async ($,
     turnId: 't1', agentId: 'ag1', answer: 'found', durationMs: 4000, isAborted: false, reason: 'answer',
   })
   const after = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect((await after.find({ type: 'Text', text: /done 4s/ }))).toBeTruthy()
+  expect((await after.find({ type: 'Text', text: /done 4s/ }))?.text).toContain('ctx 31k · out 2.5k')
   expect((await after.find({ type: 'Text', text: /0 working/ }))).toBeTruthy()
   await after.unmount()
 })

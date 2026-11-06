@@ -1,10 +1,10 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register, Timer } from 'claude-code'
+import type { AgentInfo, EngineInterface, Register, Timer } from 'claude-code'
 
-import type { AgentRecord } from '../types'
+import type { AgentRecord, AgentState } from '../types'
 import {
-  MASCOT_COLUMNS, STATE_LABEL, colorOf, formatDuration, formatTokens,
-  mascotOf, ordered, propOf, tallyByType, touch, truncate,
+  MASCOT_COLUMNS, STATE_LABEL, activityOf, colorOf, formatDuration, formatTokens,
+  isPlaceholder, mascotOf, ordered, propOf, tallyByType, touch, truncate,
 } from './lounge'
 
 const PANE = 'agent-lounge'
@@ -12,37 +12,66 @@ const TITLE = '✻ Agent Lounge'
 const HEADER_ROWS = 5
 const ROWS_PER_AGENT = 2
 const TALLY_BAR_MAX = 12
+const TICK_MS = 1000
 
 // Change the shape tag when AgentRecord changes: an older stored list is declined.
 const agents = atom({ plugin: 'agent-lounge', key: 'agents' } as const, [], {
-  shape: 'agents-1',
+  shape: 'agents-2',
 })
 
-const TICK_MS = 1000
-// One ticker for the module; a reload starts the module, and this, over.
+// Started once per module load from session.start, the hook whose work may
+// outlive its dispatch; a timer started inside a shorter hook ends with it.
 let ticker: Timer | undefined
 
-/** Redraws once a second while any agent works, so its elapsed time moves. */
-function ensureTicker($: EngineInterface): void {
+const FINISHED: ReadonlySet<string> = new Set(['completed', 'failed', 'killed'])
+
+/** Folds what the engine's agent list says into the records. */
+const reconcile = (list: readonly AgentRecord[], infos: readonly AgentInfo[], now: number): AgentRecord[] =>
+  infos.reduce((acc, info) => {
+    const known = acc.find(a => a.id === info.id)
+    // Only agents we already track, or ones still at work, are worth a row.
+    if (!known && FINISHED.has(info.status)) return acc
+    return touch(acc, info.id, now, a => ({
+      ...a,
+      type: isPlaceholder(a) ? info.type : a.type,
+      description: a.description === '' ? info.description : a.description,
+      parentId: a.parentId ?? info.parentId,
+      status: FINISHED.has(info.status) && a.status === 'running' ? (info.status as AgentState) : a.status,
+    }))
+  }, [...list])
+
+/** One tick: catch up with the engine's list, then redraw while anyone works. */
+async function tick($: EngineInterface): Promise<void> {
+  const list = await read($, agents)
+  const isBusy = list.some(a => a.status === 'running' || isPlaceholder(a))
+  if (!isBusy) return
+  const [infos, now] = await Promise.all([$.agent.list(), $.clock.now()])
+  await update($, agents, current => reconcile(current, infos, now))
+  $.ui.invalidate('ui.render')
+}
+
+function startTicker($: EngineInterface): void {
   if (ticker) return
   ticker = $.clock.every(TICK_MS, () => {
-    void read($, agents).then(list => {
-      if (list.some(a => a.status === 'running')) {
-        $.ui.invalidate('ui.render')
-        return
-      }
-      ticker?.cancel()
-      ticker = undefined
-    })
+    tick($).catch((err: unknown) => $.ui.log(`agent-lounge: tick failed: ${String(err)}`, { to: 'debug' }))
   })
 }
+
+const statusReport = (list: readonly AgentRecord[]): string =>
+  list.length === 0
+    ? 'agent-lounge: 기록된 에이전트가 없습니다.'
+    : [`agent-lounge: ${list.length}개 기록, 타이머 ${ticker ? '동작 중' : '멈춤'}`,
+      ...ordered(list).map(a =>
+        `${a.status.padEnd(9)} ${a.type} · ${a.description || '(설명 없음)'} · ${a.toolCalls} tools${a.activity ? ` · ${a.activity}` : ''}`),
+    ].join('\n')
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     try {
+      startTicker($)
       await $.command.register({
         name: 'agent-lounge',
-        description: '서브에이전트 활동을 보여 주는 Agent Lounge 창을 엽니다',
+        description: 'Agent Lounge 창을 엽니다 (status: 기록 확인)',
       })
       // Opened unasked, a pane waits undrawn on a narrow terminal: say how to open it.
       void $.ui.open({ id: PANE, title: TITLE })
@@ -58,21 +87,10 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'agent-lounge' }, async $ => {
-    // Pick up agents that started before this mod loaded.
-    const now = await $.clock.now()
-    const known = await $.agent.list()
-    await update($, agents, list => known.reduce(
-      (acc, info) => touch(acc, info.id, now, a => ({
-        ...a,
-        type: info.type,
-        description: info.description,
-        parentId: info.parentId,
-        status: info.status === 'completed' || info.status === 'failed' || info.status === 'killed'
-          ? info.status : a.status,
-      })),
-      list,
-    ))
+  on('command.run', { command: 'agent-lounge' }, async ($, e) => {
+    const [infos, now] = await Promise.all([$.agent.list(), $.clock.now()])
+    await update($, agents, list => reconcile(list, infos, now))
+    if (e.args.trim() === 'status') return { text: statusReport(await read($, agents)) }
     await $.ui.open({ id: PANE, title: TITLE })
 
     return { text: 'Agent Lounge 창을 열었습니다.' }
@@ -90,9 +108,9 @@ export const register: Register = on => {
       description: e.description,
       model: result.model,
       parentId: e.parentAgentId,
-      startedAt: now,
+      startedAt: a.toolCalls === 0 ? now : a.startedAt,
     })))
-    ensureTicker($)
+    $.ui.invalidate('ui.render')
 
     return result
   })
@@ -102,8 +120,9 @@ export const register: Register = on => {
     if (id === undefined) return next(e)
 
     const now = await $.clock.now()
+    const activity = activityOf(e.tool, e as unknown as Readonly<Record<string, unknown>>)
     await update($, agents, list => touch(list, id, now, a => ({
-      ...a, toolCalls: a.toolCalls + 1, lastTool: e.tool,
+      ...a, toolCalls: a.toolCalls + 1, lastTool: e.tool, activity,
     })))
 
     return next(e)
@@ -130,7 +149,7 @@ export const register: Register = on => {
       const now = await $.clock.now()
       const status = e.isAborted ? 'killed' : e.reason === 'error' ? 'failed' : 'completed'
       await update($, agents, list => touch(list, id, now, a => ({
-        ...a, status, durationMs: e.durationMs,
+        ...a, status, durationMs: e.durationMs, activity: undefined,
       })))
     }
 
@@ -174,19 +193,21 @@ export const register: Register = on => {
           </Box>
         )}
         {shown.map(a => {
-          const elapsed = a.durationMs ?? now - a.startedAt
+          const elapsed = formatDuration(a.durationMs ?? now - a.startedAt)
           const isResting = a.status !== 'running'
+          const about = a.description || '(작업 설명 확인 중…)'
+          const detail = isResting
+            ? `${STATE_LABEL[a.status]} ${elapsed} · ${a.toolCalls} tools · ctx ${formatTokens(a.contextTokens)} · out ${formatTokens(a.outputTokens)}`
+            : `▸ ${a.activity ?? '생각하는 중…'} · ${elapsed} · ${a.toolCalls} tools`
           return (
             <Box flexDirection="column">
               <Text>
                 <Text color={isResting ? undefined : 'claude'} dimColor={isResting}>{mascotOf(a)}</Text>
                 <Text color={colorOf(a.type)} bold>{propOf(a.type)} {a.type}</Text>
-                <Text dimColor> {truncate(a.description, Math.max(0, textColumns - a.type.length - 3))}</Text>
+                <Text dimColor={isResting}> {truncate(about, Math.max(0, textColumns - a.type.length - 3))}</Text>
               </Text>
-              <Text dimColor>
-                {' '.repeat(MASCOT_COLUMNS)}
-                {STATE_LABEL[a.status]} {formatDuration(elapsed)} · {a.toolCalls} tools
-                {a.lastTool && !isResting ? ` (${a.lastTool})` : ''} · ctx {formatTokens(a.contextTokens)} · out {formatTokens(a.outputTokens)}
+              <Text dimColor={isResting} color={isResting ? undefined : 'suggestion'}>
+                {' '.repeat(MASCOT_COLUMNS)}{truncate(detail, textColumns)}
               </Text>
             </Box>
           )
